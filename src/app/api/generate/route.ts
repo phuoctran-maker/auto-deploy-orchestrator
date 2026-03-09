@@ -50,6 +50,8 @@ export async function POST(request: Request) {
     console.log("2. Creating GitHub Repository...");
     const repoName = `auto-site-${Date.now()}`;
     
+    const cleanPromptForDescription = prompt.replace(/[\n\r\t]/g, ' ').substring(0, 50);
+
     const createRepoRes = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_TEMPLATE_REPO}/generate`, {
       method: "POST",
       headers: {
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         owner: GITHUB_USERNAME,
         name: repoName,
-        description: `Tự động tạo website dựa trên prompt: ${prompt.substring(0, 50)}...`,
+        description: `Tự động tạo website dựa trên prompt: ${cleanPromptForDescription}...`,
         include_all_branches: false,
         private: false
       })
@@ -127,6 +129,12 @@ export async function POST(request: Request) {
     // --- 4. Tạo Project & Deploy trên Vercel ---
     console.log("4. Creating Vercel Project and Deploying...");
     
+    // Để deploy qua API Vercel với Github, chúng ta cần repo ID. Cần gọi Github API lần nữa để lấy
+    const ghRepoInfo = await fetch(`https://api.github.com/repos/${repoFullName}`, {
+      headers: { "Authorization": `Bearer ${GITHUB_TOKEN}`, "Accept": "application/vnd.github.v3+json" }
+    }).then(res => res.json());
+    const githubRepoId = ghRepoInfo.id;
+
     // Create Vercel Project
     const createVercelProjectRes = await fetch("https://api.vercel.com/v9/projects", {
       method: "POST",
@@ -139,7 +147,8 @@ export async function POST(request: Request) {
         framework: "nextjs",
         gitRepository: {
           type: "github",
-          repo: repoFullName
+          repo: repoFullName,
+          repoId: githubRepoId
         }
       })
     });
@@ -161,6 +170,7 @@ export async function POST(request: Request) {
         gitSource: {
           type: "github",
           repo: repoFullName,
+          repoId: githubRepoId,
           ref: defaultBranch
         }
       })
